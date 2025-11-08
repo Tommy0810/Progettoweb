@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>Crea Notizia - News Community</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header>
+        <a class="atitle" href="index.html"><h1>Turing NEWS</h1></a>
+        <nav>
+            <a href="index.html">Home</a>
+            <a href="dashboard.html">Dashboard</a>
+            <a href="post.html">Nuova Notizia</a>
+            <a href="#" id="logout-link">Logout</a>
+        </nav>
+    </header>
+
+    <main>
+        <form id="post-form">
+            <h2>Crea una nuova notizia</h2>
+            <div>
+                <label for="title">Titolo:</label>
+                <input type="text" id="title" required>
+            </div>
+            <div>
+                <label for="content">Contenuto:</label>
+                <textarea id="content" rows="10" required></textarea>
+            </div>
+            <div>
+                <label for="post-image">Immagine (opzionale):</label>
+                <input type="file" id="post-image" accept="image/*">
+                <div id="image-preview" style="margin-top: 10px; display: none;">
+                    <img id="preview-img" src="#" alt="Anteprima immagine" style="max-width: 300px; max-height: 200px;">
+                </div>
+            </div>
+            <button type="submit">Pubblica</button>
+            <div id="post-error" style="color: red; display: none;"></div>
+            <div id="post-success" style="color: green; display: none;">Notizia pubblicata con successo!</div>
+        </form>
+    </main>
+
+    <script src="js/api-client.js"></script>
+    <script src="js/auth-new.js"></script>
+    <script src="js/posts-new.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            const user = await getCurrentUser();
+            if (!user) {
+                window.location.href = 'login.html';
+                return;
+            }
+            
+            document.getElementById('logout-link').addEventListener('click', function(e) {
+                e.preventDefault();
+                logout();
+                window.location.href = 'index.html';
+            });
+            
+            // Anteprima immagine
+            document.getElementById('post-image').addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(event) {
+                        document.getElementById('preview-img').src = event.target.result;
+                        document.getElementById('image-preview').style.display = 'block';
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+        });
+        
+        document.getElementById('post-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const title = document.getElementById('title').value;
+            const content = document.getElementById('content').value;
+            const imageFile = document.getElementById('post-image').files[0];
+            const errorElement = document.getElementById('post-error');
+            const successElement = document.getElementById('post-success');
+            
+            // Disabilita il pulsante durante l'invio
+            const submitBtn = this.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Pubblicazione in corso...';
+            
+            try {
+                let imageUrl = null;
+                
+                // Carica l'immagine se presente
+                if (imageFile) {
+                    successElement.style.display = 'none';
+                    errorElement.style.display = 'none';
+                    submitBtn.textContent = 'Caricamento immagine...';
+                    imageUrl = await uploadImage(imageFile);
+                }
+                
+                submitBtn.textContent = 'Creazione post...';
+                await createPost(title, content, imageUrl);
+                
+                successElement.style.display = 'block';
+                errorElement.style.display = 'none';
+                
+                document.getElementById('post-form').reset();
+                document.getElementById('image-preview').style.display = 'none';
+                
+                setTimeout(() => {
+                    successElement.style.display = 'none';
+                    window.location.href = 'index.html';
+                }, 2000);
+            } catch (error) {
+                errorElement.textContent = 'Errore: ' + error.message;
+                errorElement.style.display = 'block';
+                successElement.style.display = 'none';
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Pubblica';
+            }
+        });
+    </script>
+</body>
+</html>

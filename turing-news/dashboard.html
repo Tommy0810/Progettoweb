@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard - News Community</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header>
+        <a class="atitle" href="index.html"><h1>Turing NEWS</h1></a>
+        <nav>
+            <a href="index.html">Home</a>
+            <a href="dashboard.html">Dashboard</a>
+            <a href="post.html">Nuova Notizia</a>
+            <a href="#" id="logout-link">Logout</a>
+        </nav>
+    </header>
+
+    <main>
+        <h2>Le tue attività</h2>
+        <section id="user-posts">
+            <h3>Le tue notizie</h3>
+            <div class="posts-container">
+                <p>Caricamento...</p>
+            </div>
+        </section>
+        
+        <section id="user-likes">
+            <h3>Notizie che hai apprezzato</h3>
+            <div class="posts-container">
+                <p>Caricamento...</p>
+            </div>
+        </section>
+    </main>
+
+    <script src="js/api-client.js"></script>
+    <script src="js/auth-new.js"></script>
+    <script src="js/posts-new.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            const user = await getCurrentUser();
+            if (!user) {
+                window.location.href = 'login.html';
+                return;
+            }
+            
+            document.getElementById('logout-link').addEventListener('click', function(e) {
+                e.preventDefault();
+                logout();
+                window.location.href = 'index.html';
+            });
+            
+            // Carica i post dell'utente
+            try {
+                const userData = await api.getUserPosts(user.id);
+                renderPostsInContainer(userData.posts, document.querySelector('#user-posts .posts-container'));
+            } catch (error) {
+                console.error('Errore caricamento post utente:', error);
+                document.querySelector('#user-posts .posts-container').innerHTML = 
+                    '<p>Errore nel caricamento dei tuoi post.</p>';
+            }
+            
+            // Carica i post a cui l'utente ha messo like
+            try {
+                const likedPosts = await api.getLikedPosts();
+                renderPostsInContainer(likedPosts, document.querySelector('#user-likes .posts-container'));
+            } catch (error) {
+                console.error('Errore caricamento post apprezzati:', error);
+                document.querySelector('#user-likes .posts-container').innerHTML = 
+                    '<p>Errore nel caricamento dei post apprezzati.</p>';
+            }
+        });
+        
+        function renderPostsInContainer(posts, container) {
+            container.innerHTML = '';
+            
+            if (posts.length === 0) {
+                container.innerHTML = '<p>Nessuna notizia trovata.</p>';
+                return;
+            }
+            
+            posts.forEach(post => {
+                const postElement = document.createElement('div');
+                postElement.className = 'news-card';
+                postElement.dataset.postId = post.id;
+                
+                let imageHtml = '';
+                if (post.image_url) {
+                    imageHtml = `<img src="${post.image_url}" alt="${post.title}" class="post-image">`;
+                }
+                
+                postElement.innerHTML = `
+                    <h3>${post.title}</h3>
+                    <p><small>Pubblicato il ${new Date(post.created_at).toLocaleDateString()}</small></p>
+                    ${imageHtml}
+                    <p>${post.content.substring(0, 100)}${post.content.length > 100 ? '...' : ''}</p>
+                    <div class="post-stats">
+                        <span class="like-count">${post.likes_count} Like</span>
+                        <span>${post.comments_count} Commenti</span>
+                        <span>${post.shares_count} Condivisioni</span>
+                    </div>
+                `;
+                
+                container.appendChild(postElement);
+            });
+        }
+    </script>
+</body>
+</html>
