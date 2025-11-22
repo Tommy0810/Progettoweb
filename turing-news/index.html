@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>News Community</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header>
+        <a class="atitle" href="index.html"><h1>Turing NEWS</h1></a>
+        
+        <div class="search-bar">
+            <form id="search-form">
+                <input type="text" id="search-input" placeholder="Cerca notizie...">
+                <button type="submit">Cerca</button>
+            </form>
+        </div>
+
+        <nav>
+            <a href="index.html">Home</a>
+            <a href="login.html" class="guest-only">Login</a>
+            <a href="register.html" class="guest-only">Registrati</a>
+            <a href="dashboard.html" class="auth-only" style="display:none;">Dashboard</a>
+            <a href="post.html" class="auth-only" style="display:none;">Nuova Notizia</a>
+            <a href="#" id="logout-link" class="auth-only" style="display:none;">Logout</a>
+        </nav>
+    </header>
+
+    <main>
+        <section id="news-feed">
+            <p>Caricamento notizie...</p>
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; 2025 News Community</p>
+    </footer>
+
+    <script src="js/app.js"></script>
+</body>
+</html>

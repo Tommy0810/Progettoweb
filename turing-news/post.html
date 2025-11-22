@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>Crea Notizia - News Community</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header>
+        <a class="atitle" href="index.html"><h1>Turing NEWS</h1></a>
+        <nav>
+            <a href="index.html">Home</a>
+            <a href="dashboard.html" class="auth-only">Dashboard</a>
+            <a href="post.html" class="auth-only">Nuova Notizia</a>
+            <a href="#" id="logout-link" class="auth-only">Logout</a>
+        </nav>
+    </header>
+
+    <main>
+        <form id="post-form">
+            <h2>Crea una nuova notizia</h2>
+            <div>
+                <label for="title">Titolo:</label>
+                <input type="text" id="title" required>
+            </div>
+            <div>
+                <label for="content">Contenuto:</label>
+                <textarea id="content" rows="10" required></textarea>
+            </div>
+            <div>
+                <label for="post-image">Immagine (opzionale):</label>
+                <input type="file" id="post-image" accept="image/*">
+            </div>
+            <button type="submit">Pubblica</button>
+        </form>
+    </main>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
