@@ -1,0 +1,8 @@
+{
+  "appId": "com.lumio.puzzle",
+  "appName": "Lumio",
+  "webDir": "www",
+  "backgroundColor": "#0b1020",
+  "ios": { "contentInset": "never" },
+  "android": { "allowMixedContent": false }
+}
