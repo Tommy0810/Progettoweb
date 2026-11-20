@@ -37,10 +37,19 @@ async function solveByClicking() {
     const rect = b.c.getBoundingClientRect();
     const cw = (m) => ((m << 1) | (m >> 3)) & 15;
     const ccw = (m) => ((m >> 1) | ((m & 1) << 3)) & 15;
+    const seen = new Set();
     return b.tiles.map((t, i) => {
-      let k = 0, m = t.m;
+      let k = 0;
       if (t.kind === 1) return { k: 0 }; // fixed: already right
-      while (m !== t.sol && k < 4) { m = t.kind === 2 ? ccw(m) : cw(m); k++; }
+      if (t.group >= 0) {               // linked: one shared count for the whole group
+        if (seen.has(t.group)) return { k: 0 };
+        seen.add(t.group);
+        const group = b.tiles.filter((u) => u.group === t.group).map((u) => ({ m: u.m, sol: u.sol }));
+        while (group.some((u) => u.m !== u.sol) && k < 4) { group.forEach((u) => (u.m = cw(u.m))); k++; }
+      } else {
+        let m = t.m;
+        while (m !== t.sol && k < 4) { m = t.kind === 2 ? ccw(m) : cw(m); k++; }
+      }
       const { x, y } = b.center(i);
       return { k, x: rect.left + x, y: rect.top + y };
     }).filter((p) => p.k > 0);
@@ -95,6 +104,30 @@ await page.waitForSelector('#modal:not(.hidden) #m-next');
 await page.click('#m-next');
 ok((await page.evaluate(() => window.__lumio.board.p.w * 1000 + window.__lumio.board.p.h)) > 0 && (await page.textContent('#g-title')).includes('47'), 'next after a replay goes to the following level');
 
+// Linked tiles: level 61
+await page.evaluate(() => window.__lumio.startLevel(61));
+await page.waitForTimeout(400);
+const link = await page.evaluate(() => {
+  const b = window.__lumio.board, r = b.c.getBoundingClientRect();
+  const i = b.tiles.findIndex((t) => t.group >= 0);
+  const j = b.tiles.findIndex((t, k) => k !== i && t.group === b.tiles[i].group);
+  const c = b.center(i);
+  return { i, j, x: r.left + c.x, y: r.top + c.y, mi: b.tiles[i].m, mj: b.tiles[j].m };
+});
+ok(link.i >= 0 && link.j >= 0, 'level 61 has linked pairs');
+await page.screenshot({ path: out + '4c-level61.png' });
+await page.mouse.click(link.x, link.y);
+const after = await page.evaluate(({ i, j }) => [window.__lumio.board.tiles[i].m, window.__lumio.board.tiles[j].m], link);
+ok(after[0] !== link.mi && after[1] !== link.mj, 'tapping a linked tile turns its partner too');
+await page.click('#btn-undo');
+const undone = await page.evaluate(({ i, j }) => [window.__lumio.board.tiles[i].m, window.__lumio.board.tiles[j].m], link);
+ok(undone[0] === link.mi && undone[1] === link.mj, 'undo restores both linked tiles');
+await solveByClicking();
+ok(await page.evaluate(() => window.__lumio.board.won), 'level 61 solved by clicking');
+await page.waitForSelector('#modal:not(.hidden) #m-next');
+await page.click('#btn-back').catch(() => {});
+await page.evaluate(() => document.querySelector('#modal').classList.add('hidden'));
+
 // A mid-game level for a nicer screenshot
 await page.evaluate(() => window.__lumio.startLevel(24));
 await page.waitForTimeout(300);
@@ -144,6 +177,43 @@ await page.click('#btn-trophies-back');
 // Persistence across reload
 await page.reload();
 ok((await page.evaluate(() => JSON.parse(localStorage.getItem('lumio_save_v1')).level)) === 3, 'save survives reload');
+
+// Daily gift pops up on launch once the player has finished a level
+await page.waitForSelector('#modal:not(.hidden) #g-claim', { timeout: 3000 });
+await page.screenshot({ path: out + '10-gift.png' });
+const coinsBefore = await page.evaluate(() => window.__lumio.state.coins);
+await page.click('#g-claim');
+ok((await page.evaluate(() => window.__lumio.state.coins)) === coinsBefore + 20, 'gift day 1 gives 20 coins');
+await page.reload();
+await page.waitForTimeout(1200);
+ok(await page.locator('#modal.hidden').count() === 1, 'gift is not offered twice in one day');
+
+// Time Attack: locked before level 6, then a full run
+await page.click('#btn-rush');
+ok(await page.locator('#home.active').count() === 1, 'Time Attack is locked at level 3');
+await page.evaluate(() => { window.__lumio.state.level = 6; });
+await page.click('#btn-rush');
+await page.waitForTimeout(300);
+ok(await page.locator('#btn-hint').isHidden(), 'no hints in Time Attack');
+for (let k = 1; k <= 2; k++) {
+  await solveByClicking();
+  await page.waitForFunction((n) => window.__lumio.getRush()?.score === n, k, { timeout: 3000 });
+}
+const timeLeft = await page.evaluate(() => window.__lumio.getRush().time);
+ok(timeLeft > 60, `solving adds time (${timeLeft.toFixed(1)}s left)`);
+await page.screenshot({ path: out + '11-rush.png' });
+await page.evaluate(() => { window.__lumio.getRush().time = 0.05; });
+await page.waitForSelector('#modal:not(.hidden) #r-retry', { timeout: 3000 });
+await page.waitForTimeout(800);
+await page.screenshot({ path: out + '12-rush-over.png' });
+ok((await page.evaluate(() => window.__lumio.state.rushBest)) === 2, 'Time Attack record saved');
+await page.click('#r-home');
+
+// Settings with stats
+await page.click('#btn-settings');
+await page.waitForTimeout(300);
+ok((await page.locator('.stat').count()) === 6, 'settings show the statistics');
+await page.screenshot({ path: out + '13-settings.png' });
 
 ok(errors.length === 0, 'no console errors' + (errors.length ? ': ' + errors.join(' | ') : ''));
 await browser.close();

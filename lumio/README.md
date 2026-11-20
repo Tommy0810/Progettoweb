@@ -25,8 +25,12 @@ Il gioco è in HTML5/JavaScript puro, senza framework né asset esterni (anche i
 | **Interstitial** ogni 4 livelli, solo dopo il livello 8 | I primi minuti restano puliti, che sono quelli decisivi. |
 | **Mappa dei livelli** 🗺️ con le stelle di ogni livello | Si può rigiocare qualsiasi livello per prendere 3 stelle. |
 | **Annulla** ↶ l'ultima mossa | Meno frustrazione, sessioni più lunghe. |
-| **Nuove tessere**: fisse 🔩 dal livello 31, ↺ che ruotano al contrario dal 46 | Novità a metà gioco, quando i giocatori iniziano ad annoiarsi. |
-| **12 trofei** 🏆 con premi in monete | Obiettivi a lungo termine (livelli, stelle, serie, boss senza aiuti). |
+| **Nuove tessere**: fisse 🔩 dal livello 31, ↺ che ruotano al contrario dal 46, collegate 🔗 (stesso colore = ruotano insieme) dal 61 | Novità a intervalli regolari, proprio quando i giocatori potrebbero annoiarsi. |
+| **Contro il tempo** ⏱️ (dal livello 6): più puzzle possibili in 60 secondi, +8 s per ogni puzzle | Partite brevi e frenetiche, record da battere e condividere. |
+| **Regalo del giorno** 🎁: calendario di 7 giorni con premi crescenti (si azzera se salti un giorno), con opzione "x2" guardando un video | Un motivo in più per aprire l'app ogni giorno. |
+| **Musica d'atmosfera** generata al momento (attivabile nelle impostazioni) | Atmosfera rilassante senza file audio. |
+| **Statistiche** nelle impostazioni | Il giocatore vede i propri progressi. |
+| **13 trofei** 🏆 con premi in monete | Obiettivi a lungo termine (livelli, stelle, serie, boss senza aiuti, contro il tempo). |
 | **Promemoria serale** (notifica alle 19:00) per la serie | Riporta i giocatori nell'app. Il permesso si chiede solo dopo la prima sfida del giorno, non al primo avvio. |
 | **Feedback**: vibrazione, suoni che salgono di tono man mano che ti avvicini alla soluzione, animazione a onda e particelle alla vittoria | Rende ogni tocco soddisfacente. |
 | Italiano/inglese automatico, tasto indietro Android, safe-area iPhone, salvataggio locale | Le basi per uscire su tutti gli store. |
@@ -107,4 +111,4 @@ Nessuno può garantire che un gioco arrivi in cima alle classifiche o ti renda r
 5. **Marketing**: i rompicapo rilassanti funzionano molto bene su TikTok e Reels (video di 10 secondi in cui tutta la griglia si illumina). Testa i creativi prima di pagare l'acquisizione utenti.
 6. **ASO**: screenshot chiari, parole chiave "puzzle, relax, logic, brain" e un video di anteprima di 15 secondi.
 
-Idee per i prossimi aggiornamenti: classifiche (Game Center / Play Games), eventi stagionali con temi a tempo, modalità a tempo, altre tessere speciali (a ponte, a colori multipli).
+Idee per i prossimi aggiornamenti: classifiche (Game Center / Play Games), eventi stagionali con temi a tempo, altre tessere speciali (a ponte, a colori multipli).

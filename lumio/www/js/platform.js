@@ -27,7 +27,7 @@ function audio() {
   return ac;
 }
 
-function tone(freq, dur, { type = 'sine', vol = 0.12, delay = 0, slide = 0 } = {}) {
+function tone(freq, dur, { type = 'sine', vol = 0.12, delay = 0, slide = 0, attack = 0.008, out = null } = {}) {
   const a = audio();
   if (!a) return;
   const t0 = a.currentTime + delay;
@@ -37,9 +37,9 @@ function tone(freq, dur, { type = 'sine', vol = 0.12, delay = 0, slide = 0 } = {
   o.frequency.setValueAtTime(freq, t0);
   if (slide) o.frequency.exponentialRampToValueAtTime(freq * slide, t0 + dur);
   g.gain.setValueAtTime(0.0001, t0);
-  g.gain.exponentialRampToValueAtTime(vol, t0 + 0.008);
+  g.gain.exponentialRampToValueAtTime(vol, t0 + attack);
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  o.connect(g).connect(a.destination);
+  o.connect(g).connect(out || a.destination);
   o.start(t0);
   o.stop(t0 + dur + 0.02);
 }
@@ -72,6 +72,36 @@ export const sfx = {
 };
 
 export function unlockAudio() { audio(); }
+
+// ---------- ambient music ----------
+// A slow, generative pentatonic pad: never repeats, never gets annoying,
+// and costs zero bytes of audio assets.
+const AMBIENT = [110, 130.81, 146.83, 164.81, 196, 220, 261.63, 293.66, 329.63];
+const music = { timer: 0, bus: null };
+
+export function setMusic(on) {
+  const a = audio();
+  if (!a) return;
+  if (on && !music.timer) {
+    music.bus = a.createGain();
+    music.bus.gain.value = 1;
+    music.bus.connect(a.destination);
+    const play = () => {
+      const f = AMBIENT[Math.floor(Math.random() * AMBIENT.length)];
+      tone(f, 4.5, { vol: 0.028, attack: 1.2, out: music.bus });
+      if (Math.random() < 0.35) tone(f * 1.5, 3.5, { vol: 0.012, attack: 1.4, delay: 0.6, out: music.bus });
+    };
+    play();
+    music.timer = setInterval(play, 1700);
+  } else if (!on && music.timer) {
+    clearInterval(music.timer);
+    music.timer = 0;
+    music.bus.gain.setTargetAtTime(0.0001, a.currentTime, 0.4);
+    const bus = music.bus;
+    setTimeout(() => bus.disconnect(), 2000);
+    music.bus = null;
+  }
+}
 
 // ---------- share (the Wordle-style viral loop) ----------
 export async function share(text) {

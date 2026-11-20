@@ -2,6 +2,8 @@
 import { DIRS, turn, KIND } from './generator.js';
 
 const TAU = Math.PI * 2;
+// Colour of each linked group's badge.
+const GROUP_COLORS = ['#ff6b8b', '#ffd93d', '#6bdc8b', '#5aa9ff', '#c77dff', '#ff9f43'];
 
 export class Board {
   constructor(canvas, callbacks) {
@@ -22,12 +24,13 @@ export class Board {
     this.w = puzzle.w;
     this.h = puzzle.h;
     this.tiles = puzzle.cur.map((m, i) => ({
-      m, sol: puzzle.sol[i], kind: puzzle.kinds?.[i] ?? KIND.NORMAL, anim: 0, locked: false,
+      m, sol: puzzle.sol[i], kind: puzzle.kinds?.[i] ?? KIND.NORMAL, group: puzzle.groups?.[i] ?? -1, anim: 0, locked: false,
       power: 0, shake: 0, wave: 0, pop: 0,
     }));
     this.taps = 0;
     this.won = false;
-    this.history = [];
+    this.frozen = false; // set by Time Attack when the clock runs out
+    this.history = [];   // each entry: the list of tiles one tap turned
     this.particles = [];
     this.bulbs = [];
     this.tiles.forEach((t, i) => {
@@ -111,7 +114,7 @@ export class Board {
   }
 
   onPointer(e) {
-    if (!this.p || this.won) return;
+    if (!this.p || this.won || this.frozen) return;
     const rect = this.c.getBoundingClientRect();
     const col = Math.floor((e.clientX - rect.left - this.ox) / this.cell);
     const row = Math.floor((e.clientY - rect.top - this.oy) / this.cell);
@@ -126,13 +129,22 @@ export class Board {
       this.cb.onLocked?.();
       return;
     }
-    const prev = t.m;
-    const d = this.spin(t);
-    this.history.push({ i, prev, d });
-    t.pop = 1;
+    this.history.push(this.members(i).map((j) => {
+      const tile = this.tiles[j];
+      const prev = tile.m;
+      tile.pop = 1;
+      return { i: j, prev, d: this.spin(tile) };
+    }));
     this.taps++;
     this.afterChange();
     this.cb.onTap?.(this.taps, this.litCount / this.bulbs.length);
+  }
+
+  /** The tiles that turn when tile i is tapped (its whole group if linked). */
+  members(i) {
+    const g = this.tiles[i].group;
+    if (g < 0) return [i];
+    return this.tiles.flatMap((t, j) => (t.group === g ? [j] : []));
   }
 
   /** Turn a tile one step in its own direction; returns the animation offset applied. */
@@ -146,11 +158,12 @@ export class Board {
   /** Take back the last rotation. Doesn't refund the tap. */
   undo() {
     if (this.won || !this.history.length) return false;
-    const { i, prev, d } = this.history.pop();
-    const t = this.tiles[i];
-    t.m = prev;
-    t.anim -= d;
-    t.pop = 1;
+    for (const { i, prev, d } of this.history.pop()) {
+      const t = this.tiles[i];
+      t.m = prev;
+      t.anim -= d;
+      t.pop = 1;
+    }
     this.afterChange();
     return true;
   }
@@ -174,11 +187,10 @@ export class Board {
     // Prefer tiles touching the lit network: the hint feels like "the next step".
     const near = wrong.filter((i) => this.neighbors(i).some((j) => this.powered[j]));
     const i = (near.length ? near : wrong)[0];
-    const t = this.tiles[i];
-    while (t.m !== t.sol) this.spin(t);
-    t.locked = true;
+    const group = this.members(i).map((j) => this.tiles[j]);
+    for (let k = 0; k < 4 && group.some((t) => t.m !== t.sol); k++) group.forEach((t) => this.spin(t));
+    for (const t of group) { t.locked = true; t.pop = 1; }
     this.history = []; // a locked tile can't be undone
-    t.pop = 1;
     this.afterChange();
     return true;
   }
@@ -271,6 +283,21 @@ export class Board {
         ctx.fillStyle = th.off;
         const b = s * 0.34, br = Math.max(1.5, cs * 0.035);
         for (const [bx, by] of [[-b, -b], [b, -b], [-b, b], [b, b]]) { circle(ctx, bx, by, br); ctx.fill(); }
+      } else if (t.kind === KIND.LINKED && t.group >= 0) {
+        // coloured link badge: same colour = turns together
+        const col = GROUP_COLORS[t.group % GROUP_COLORS.length];
+        const bx = s * 0.3, by = s * 0.3, br = Math.max(3, cs * 0.075);
+        ctx.fillStyle = col;
+        ctx.globalAlpha = 0.18;
+        circle(ctx, bx, by, br * 1.9); ctx.fill();
+        ctx.globalAlpha = 1;
+        circle(ctx, bx, by, br); ctx.fill();
+        ctx.strokeStyle = col;
+        ctx.lineWidth = Math.max(1.5, cs * 0.03);
+        roundRect(ctx, -s / 2 + 1, -s / 2 + 1, s - 2, s - 2, cs * 0.18);
+        ctx.globalAlpha = 0.55;
+        ctx.stroke();
+        ctx.globalAlpha = 1;
       } else if (t.kind === KIND.REVERSE) {
         // counter-clockwise arrow in the corner
         ctx.globalAlpha = 0.95;

@@ -13,6 +13,7 @@ export const ACHIEVEMENTS = [
   { id: 'streak7', icon: '📅', reward: 150, test: (S) => S.bestStreak >= 7 },
   { id: 'streak30', icon: '🏆', reward: 600, test: (S) => S.bestStreak >= 30 },
   { id: 'boss', icon: '⚡', reward: 80, test: (S) => S.stats.bossNoHint >= 1 },
+  { id: 'rush10', icon: '⏱️', reward: 150, test: (S) => S.rushBest >= 10 },
   { id: 'collector', icon: '🎨', reward: 100, test: (S) => S.owned.length >= 3 },
 ];
 

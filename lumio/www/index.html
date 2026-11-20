@@ -15,7 +15,10 @@
     <section id="home" class="screen active">
       <header class="topbar">
         <div class="pill">🪙 <span data-coins>0</span></div>
-        <button class="icon" id="btn-settings" aria-label="Settings">⚙</button>
+        <div class="topbar-right">
+          <button class="icon gift hidden" id="btn-gift" aria-label="Gift">🎁</button>
+          <button class="icon" id="btn-settings" aria-label="Settings">⚙</button>
+        </div>
       </header>
       <div class="logo">
         <div class="orb"><span></span></div>
@@ -25,6 +28,7 @@
       <div class="menu">
         <button class="btn primary big" id="btn-play"><span data-i18n="play"></span><small id="play-level"></small></button>
         <button class="btn" id="btn-daily"><span>☀️ <span data-i18n="daily"></span></span><small id="daily-info"></small></button>
+        <button class="btn" id="btn-rush"><span>⏱️ <span data-i18n="rush"></span></span><small id="rush-info"></small></button>
         <div class="menu-row">
           <button class="btn tile-btn" id="btn-levels"><b>🗺️</b><span data-i18n="levels"></span></button>
           <button class="btn tile-btn" id="btn-trophies"><b>🏆</b><span data-i18n="trophies"></span><small id="trophy-count"></small></button>

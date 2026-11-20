@@ -17,8 +17,10 @@ export const rot = (m) => ((m << 1) | (m >> 3)) & 15;
 export const rotCCW = (m) => ((m >> 1) | ((m & 1) << 3)) & 15;
 
 // Tile kinds: normal tiles turn clockwise, fixed tiles never move,
-// reverse tiles turn counter-clockwise.
-export const KIND = { NORMAL: 0, FIXED: 1, REVERSE: 2 };
+// reverse tiles turn counter-clockwise, linked tiles turn clockwise together
+// with every other tile of their group.
+export const KIND = { NORMAL: 0, FIXED: 1, REVERSE: 2, LINKED: 3 };
+export const MAX_GROUPS = 6;
 
 export function turn(kind, m) {
   return kind === KIND.REVERSE ? rotCCW(m) : rot(m);
@@ -55,7 +57,7 @@ export function hashString(s) {
   return h >>> 0;
 }
 
-export function generate({ w, h, seed, scramble = 1, fixed = 0, reverse = 0 }) {
+export function generate({ w, h, seed, scramble = 1, fixed = 0, reverse = 0, linked = 0 }) {
   const r = rng(seed);
   const n = w * h;
   const sol = new Array(n).fill(0);
@@ -124,8 +126,47 @@ export function generate({ w, h, seed, scramble = 1, fixed = 0, reverse = 0 }) {
     }
   }
 
-  const par = cur.reduce((s, m, i) => s + tapsBetween(m, sol[i], kinds[i]), 0);
-  return { w, h, src, sol, cur, kinds, par };
+  // Linked pairs: both tiles get the same scramble, so one shared number of
+  // taps solves the whole group.
+  const groups = new Array(n).fill(-1);
+  if (linked) {
+    const pool = [];
+    for (let i = 0; i < n; i++) if (i !== src && kinds[i] === KIND.NORMAL && rot(sol[i]) !== sol[i]) pool.push(i);
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(r() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    const count = Math.min(MAX_GROUPS, Math.floor((n * linked) / 2));
+    for (let g = 0; g < count && pool.length >= 2; g++) {
+      const k = 1 + Math.floor(r() * 3);
+      for (const i of [pool.pop(), pool.pop()]) {
+        kinds[i] = KIND.LINKED;
+        groups[i] = g;
+        let m = sol[i];
+        for (let t = 0; t < k; t++) m = rot(m);
+        cur[i] = m;
+      }
+    }
+  }
+
+  let par = 0;
+  const seen = new Set();
+  for (let i = 0; i < n; i++) {
+    if (groups[i] < 0) par += tapsBetween(cur[i], sol[i], kinds[i]);
+    else if (!seen.has(groups[i])) {
+      seen.add(groups[i]);
+      par += groupTaps(groups.flatMap((g, j) => (g === groups[i] ? [j] : [])), cur, sol);
+    }
+  }
+  return { w, h, src, sol, cur, kinds, groups, par };
+}
+
+/** Minimum shared clockwise taps that put every member of a group in place. */
+export function groupTaps(members, cur, sol) {
+  for (let k = 0; k < 4; k++) {
+    if (members.every((i) => { let m = cur[i]; for (let t = 0; t < k; t++) m = rot(m); return m === sol[i]; })) return k;
+  }
+  return Infinity;
 }
 
 // Difficulty curve: grid grows over time, with a "breather" every 5th level
@@ -136,6 +177,7 @@ const SIZES = [
 ];
 export const FIXED_FROM = 31;
 export const REVERSE_FROM = 46;
+export const LINKED_FROM = 61;
 const TIER_UNTIL = [2, 5, 9, 14, 21, 30, 42, 56, 75, 100, 140, 200];
 
 export function levelConfig(level) {
@@ -152,8 +194,16 @@ export function levelConfig(level) {
     scramble: level <= 2 ? 0.55 : 1,
     fixed: level >= FIXED_FROM ? 0.12 : 0,
     reverse: level >= REVERSE_FROM ? 0.18 : 0,
+    linked: level >= LINKED_FROM ? 0.2 : 0,
     boss, breather,
   };
+}
+
+/** Time Attack puzzles: small boards that grow as the score climbs. */
+export function rushConfig(score, seed) {
+  const sizes = [[4, 4], [4, 5], [5, 5], [5, 6], [6, 6], [6, 7]];
+  const [w, h] = sizes[Math.min(sizes.length - 1, Math.floor(score / 2))];
+  return { w, h, seed, scramble: 1 };
 }
 
 export function dailyConfig(dateKey) {

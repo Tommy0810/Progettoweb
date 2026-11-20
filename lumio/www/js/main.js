@@ -1,8 +1,8 @@
-import { generate, levelConfig, dailyConfig, FIXED_FROM, REVERSE_FROM } from './generator.js';
+import { generate, levelConfig, dailyConfig, rushConfig, FIXED_FROM, REVERSE_FROM, LINKED_FROM } from './generator.js';
 import { ACHIEVEMENTS, checkAchievements } from './achievements.js';
 import { Board } from './board.js';
 import { THEMES, applyTheme } from './themes.js';
-import { haptic, sfx, unlockAudio, share, showRewarded, showInterstitial, scheduleReminder } from './platform.js';
+import { haptic, sfx, unlockAudio, share, showRewarded, showInterstitial, scheduleReminder, setMusic } from './platform.js';
 import { t, translateDom } from './i18n.js';
 import { load, save, dateKey, yesterdayKey, dailyNumber } from './storage.js';
 
@@ -10,13 +10,22 @@ const HINT_COST = 30;
 const FREE_COINS = 25;
 const INTERSTITIAL_EVERY = 4;   // levels between interstitials
 const INTERSTITIAL_AFTER = 8;   // no ads at all during the first levels
+const RUSH_FROM = 6;            // Time Attack unlocks once the basics are learned
+const RUSH_START = 60;          // seconds on the clock
+const RUSH_BONUS = 8;           // seconds added per solved puzzle
+const GIFTS = [                 // 7-day gift calendar
+  { coins: 20 }, { coins: 30 }, { coins: 40, hints: 1 }, { coins: 50 },
+  { coins: 60 }, { coins: 80, hints: 1 }, { coins: 150, hints: 2 },
+];
 
 const S = load();
 let theme = applyTheme(S.theme);
 sfx.enabled = S.sound;
 
 const $ = (sel) => document.querySelector(sel);
-let mode = null;     // { type: 'level', level, cfg } | { type: 'daily', key }
+let mode = null;     // { type: 'level', level, cfg } | { type: 'daily', key } | { type: 'rush' }
+let rush = null;     // Time Attack state while a run is in progress
+let audioUnlocked = false;
 let puzzle = null;
 let hintsThisLevel = 0;
 
@@ -38,8 +47,9 @@ const board = new Board($('#board'), {
     sfx.win();
     haptic('success', S.haptics);
     $('#tutorial').classList.remove('show');
+    if (rush) rush.paused = true; // the celebration doesn't eat the clock
   },
-  onWin: (r) => onWin(r),
+  onWin: (r) => (mode.type === 'rush' ? rushSolved() : onWin(r)),
 });
 
 // ---------------- screens ----------------
@@ -71,6 +81,11 @@ function renderHome() {
   $('#daily-info').textContent = doneToday ? t('dailyDone') : t('dailyNew', { n: dailyReward(nextStreak()) });
   $('#btn-daily').classList.toggle('done', doneToday);
   $('#btn-daily').classList.toggle('pulse', !doneToday);
+  const rushOpen = S.level >= RUSH_FROM;
+  $('#rush-info').textContent = !rushOpen ? t('rushLocked', { n: RUSH_FROM })
+    : S.rushBest ? t('rushBest', { n: S.rushBest }) : t('rushNew');
+  $('#btn-rush').classList.toggle('done', !rushOpen);
+  $('#btn-gift').classList.toggle('hidden', !giftAvailable());
   const alive = S.lastDaily === dateKey() || S.lastDaily === yesterdayKey();
   $('#streak-home').textContent = alive && S.streak > 0 ? (S.streak === 1 ? t('streakOne') : t('streak', { n: S.streak })) : '';
 }
@@ -81,7 +96,7 @@ function startLevel(level) {
   mode = { type: 'level', level, cfg };
   puzzle = generate(cfg);
   $('#g-title').textContent = cfg.boss ? `⚡ ${t('boss')} ${level}` : cfg.breather ? `🌙 ${t('level')} ${level}` : `${t('level')} ${level}`;
-  const tut = { 1: t('tut1'), 2: t('tut2'), [FIXED_FROM]: t('tutFixed'), [REVERSE_FROM]: t('tutReverse') }[level] || '';
+  const tut = { 1: t('tut1'), 2: t('tut2'), [FIXED_FROM]: t('tutFixed'), [REVERSE_FROM]: t('tutReverse'), [LINKED_FROM]: t('tutLinked') }[level] || '';
   $('#tutorial').textContent = tut;
   $('#tutorial').classList.toggle('show', !!tut);
   enterGame();
@@ -98,6 +113,7 @@ function startDaily() {
 
 function enterGame() {
   showScreen('game');
+  $('#game').classList.toggle('rush', mode.type === 'rush');
   refreshCoins();
   hintsThisLevel = 0;
   board.load(puzzle, theme);
@@ -105,7 +121,14 @@ function enterGame() {
 }
 
 function updateHud() {
-  $('#g-sub').textContent = `${t('taps')}: ${board.taps} · ${t('par')} ${puzzle.par}`;
+  const sub = $('#g-sub');
+  if (rush) {
+    sub.textContent = t('rushHud', { s: Math.max(0, Math.ceil(rush.time)), n: rush.score });
+    sub.classList.toggle('low', rush.time < 10);
+  } else {
+    sub.textContent = `${t('taps')}: ${board.taps} · ${t('par')} ${puzzle.par}`;
+    sub.classList.remove('low');
+  }
   $('#hint-count').textContent = S.freeHints > 0 ? S.freeHints : `${HINT_COST}🪙`;
   $('#btn-undo').disabled = !board.canUndo();
 }
@@ -212,6 +235,133 @@ function onWin({ taps, par }) {
     }
     startLevel(mode.level + 1);
   });
+}
+
+// ---------------- Time Attack ----------------
+function startRush() {
+  if (S.level < RUSH_FROM) {
+    toast(t('rushLocked', { n: RUSH_FROM }));
+    haptic('heavy', S.haptics);
+    return;
+  }
+  stopRush();
+  mode = { type: 'rush' };
+  rush = { score: 0, time: RUSH_START, paused: false, last: performance.now(), timer: 0 };
+  $('#g-title').textContent = t('rushTitle');
+  $('#tutorial').classList.remove('show');
+  nextRushPuzzle();
+  rush.timer = setInterval(rushTick, 100);
+}
+
+function nextRushPuzzle() {
+  puzzle = generate(rushConfig(rush.score, (Math.random() * 2 ** 32) >>> 0));
+  enterGame();
+}
+
+function rushTick() {
+  const now = performance.now();
+  const dt = (now - rush.last) / 1000;
+  rush.last = now;
+  if (rush.paused || document.hidden) return;
+  rush.time -= dt;
+  updateHud();
+  if (rush.time <= 0) endRush();
+}
+
+function rushSolved() {
+  rush.score++;
+  rush.time += RUSH_BONUS;
+  rush.paused = false;
+  rush.last = performance.now();
+  toast(t('rushBonus', { n: RUSH_BONUS }));
+  nextRushPuzzle();
+}
+
+function stopRush() {
+  if (rush) clearInterval(rush.timer);
+  rush = null;
+  $('#toast').classList.remove('show'); // drop a leftover "+8s"
+}
+
+function endRush() {
+  const score = rush.score;
+  stopRush();
+  board.frozen = true;
+  sfx.locked();
+  haptic('heavy', S.haptics);
+  const record = score > S.rushBest;
+  S.rushBest = Math.max(S.rushBest, score);
+  const reward = score * 4;
+  const before = S.coins;
+  S.coins += reward;
+  const trophies = checkAchievements(S);
+  save(S);
+  openModal(`
+    <h2>${t('timeUp')}</h2>
+    <p class="big-score">${score}</p>
+    <p class="muted">${t('rushScore', { n: score })}</p>
+    ${record && score > 0 ? `<p class="streak-big">${t('newRecord')}</p>` : `<p class="muted">${t('rushBest', { n: S.rushBest })}</p>`}
+    ${reward ? `<p class="reward">+${reward} 🪙</p>` : ''}
+    <div class="row">
+      <button class="btn small" id="r-share">${t('share')}</button>
+      <button class="btn small" id="r-home">${t('home')}</button>
+    </div>
+    <button class="btn primary big" id="r-retry">${t('retry')} ↻</button>
+  `, { dismissable: false });
+  if (reward || trophies.length) setTimeout(() => { sfx.coin(); animateCoins(before, S.coins); }, 500);
+  trophies.forEach((a, k) => setTimeout(() => announceTrophy(a), 1300 + k * 2000));
+  $('#r-share').addEventListener('click', async () => {
+    if ((await share(t('rushShare', { n: score }))) === 'copied') toast(t('copied'));
+  });
+  $('#r-home').addEventListener('click', goHome);
+  $('#r-retry').addEventListener('click', () => { closeModal(); startRush(); });
+}
+
+// ---------------- daily gift ----------------
+function giftAvailable() {
+  return S.level > 1 && S.lastGift !== dateKey();
+}
+
+function giftIndex() {
+  return S.lastGift === yesterdayKey() ? S.giftNext : 0; // missing a day restarts the calendar
+}
+
+function openGift() {
+  if (!giftAvailable()) return;
+  const idx = giftIndex();
+  const days = GIFTS.map((g, i) => `
+    <div class="gift-day ${i < idx ? 'claimed' : i === idx ? 'today' : ''}">
+      <small>${t('giftDay', { n: i + 1 })}</small>
+      <b>${i < idx ? '✓' : i === GIFTS.length - 1 ? '🎁' : '🪙'}</b>
+      <span>${g.coins}${g.hints ? ' ' + t('giftHint', { n: g.hints }) : ''}</span>
+    </div>`).join('');
+  openModal(`
+    <h2>${t('giftTitle')}</h2>
+    <p class="muted">${t('giftSub')}</p>
+    <div class="gift-grid">${days}</div>
+    <button class="btn primary big" id="g-claim">${t('claim')}</button>
+    <button class="btn" id="g-double">${t('claimDouble')}</button>
+  `);
+  $('#g-claim').addEventListener('click', () => claimGift(idx, 1));
+  $('#g-double').addEventListener('click', async () => {
+    if (await showRewarded()) claimGift(idx, 2);
+  });
+}
+
+function claimGift(idx, mult) {
+  if (!giftAvailable()) return;
+  const g = GIFTS[idx];
+  const before = S.coins;
+  S.coins += g.coins * mult;
+  S.freeHints += g.hints || 0;
+  S.lastGift = dateKey();
+  S.giftNext = (idx + 1) % GIFTS.length;
+  save(S);
+  closeModal();
+  sfx.coin();
+  haptic('success', S.haptics);
+  animateCoins(before, S.coins);
+  renderHome();
 }
 
 function announceTrophy(a) {
@@ -356,12 +506,25 @@ async function freeCoins() {
 
 // ---------------- settings ----------------
 function openSettings() {
+  const stars = Object.values(S.stars);
+  const stat = (k, v) => `<div class="stat"><b>${v}</b><small>${t(k)}</small></div>`;
   openModal(`
     <h2>${t('settings')}</h2>
+    <label class="toggle"><span>${t('music')}</span><input type="checkbox" id="s-music" ${S.music ? 'checked' : ''}></label>
     <label class="toggle"><span>${t('sound')}</span><input type="checkbox" id="s-sound" ${S.sound ? 'checked' : ''}></label>
     <label class="toggle"><span>${t('haptics')}</span><input type="checkbox" id="s-hap" ${S.haptics ? 'checked' : ''}></label>
+    <h3>${t('stats')}</h3>
+    <div class="stats">
+      ${stat('st_levels', S.level - 1)}
+      ${stat('st_stars', stars.reduce((a, b) => a + b, 0))}
+      ${stat('st_perfect', stars.filter((v) => v === 3).length)}
+      ${stat('st_streak', S.bestStreak)}
+      ${stat('st_rush', S.rushBest)}
+      ${stat('st_hints', S.stats.hints)}
+    </div>
     <button class="btn ghost" id="s-close">${t('close')}</button>
   `);
+  $('#s-music').addEventListener('change', (e) => { S.music = e.target.checked; save(S); setMusic(S.music); });
   $('#s-sound').addEventListener('change', (e) => { S.sound = sfx.enabled = e.target.checked; save(S); });
   $('#s-hap').addEventListener('change', (e) => { S.haptics = e.target.checked; save(S); });
   $('#s-close').addEventListener('click', closeModal);
@@ -388,6 +551,7 @@ function toast(msg) {
 
 // ---------------- wiring ----------------
 function goHome() {
+  stopRush();
   closeModal();
   renderHome();
   showScreen('home');
@@ -397,7 +561,14 @@ translateDom();
 renderHome();
 remind(); // refresh tomorrow's reminder (only if permission was already granted)
 
-document.addEventListener('pointerdown', unlockAudio, { once: true });
+document.addEventListener('pointerdown', () => {
+  unlockAudio();
+  audioUnlocked = true;
+  if (S.music) setMusic(true);
+}, { once: true });
+if (giftAvailable()) setTimeout(openGift, 700);
+$('#btn-rush').addEventListener('click', startRush);
+$('#btn-gift').addEventListener('click', openGift);
 $('#btn-play').addEventListener('click', () => startLevel(S.level));
 $('#btn-daily').addEventListener('click', startDaily);
 $('#btn-shop').addEventListener('click', () => { renderShop(); showScreen('shop'); });
@@ -415,8 +586,13 @@ $('#btn-hint').addEventListener('click', requestHint);
 $('#modal').addEventListener('click', (e) => { if (e.target.id === 'modal' && modalDismissable) closeModal(); });
 
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) board.stop();
-  else if ($('#game').classList.contains('active')) board.start();
+  if (document.hidden) {
+    board.stop();
+    setMusic(false);
+  } else {
+    if ($('#game').classList.contains('active')) board.start();
+    if (S.music && audioUnlocked) setMusic(true);
+  }
 });
 
 // Android hardware back button.
@@ -427,4 +603,4 @@ window.Capacitor?.Plugins?.App?.addListener?.('backButton', () => {
 });
 
 // Exposed for automated tests only.
-window.__lumio = { board, state: S, startLevel, startDaily };
+window.__lumio = { board, state: S, startLevel, startDaily, getRush: () => rush };

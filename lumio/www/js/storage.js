@@ -15,6 +15,10 @@ const DEFAULTS = {
   levelsSinceAd: 0,
   noAds: false,       // set by the "Remove ads" in-app purchase
   achievements: [],   // unlocked trophy ids
+  music: true,
+  rushBest: 0,        // Time Attack record
+  giftNext: 0,        // next day (0-6) of the daily gift calendar
+  lastGift: null,     // 'YYYY-MM-DD' of the last gift claimed
   stats: { wins: 0, hints: 0, bossNoHint: 0 },
 };
 
