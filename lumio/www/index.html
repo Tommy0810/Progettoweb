@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+  <meta name="theme-color" content="#0b1020">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Lumio</title>
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+    <section id="home" class="screen active">
+      <header class="topbar">
+        <div class="pill">🪙 <span data-coins>0</span></div>
+        <div class="topbar-right">
+          <button class="icon gift hidden" id="btn-gift" aria-label="Gift">🎁</button>
+          <button class="icon" id="btn-settings" aria-label="Settings">⚙</button>
+        </div>
+      </header>
+      <div class="logo">
+        <div class="orb"><span></span></div>
+        <h1>LUMIO</h1>
+        <p data-i18n="tagline"></p>
+      </div>
+      <div class="menu">
+        <button class="btn primary big" id="btn-play"><span data-i18n="play"></span><small id="play-level"></small></button>
+        <button class="btn" id="btn-daily"><span>☀️ <span data-i18n="daily"></span></span><small id="daily-info"></small></button>
+        <button class="btn" id="btn-rush"><span>⏱️ <span data-i18n="rush"></span></span><small id="rush-info"></small></button>
+        <div class="menu-row">
+          <button class="btn tile-btn" id="btn-levels"><b>🗺️</b><span data-i18n="levels"></span></button>
+          <button class="btn tile-btn" id="btn-trophies"><b>🏆</b><span data-i18n="trophies"></span><small id="trophy-count"></small></button>
+          <button class="btn tile-btn" id="btn-shop"><b>🎨</b><span data-i18n="themes"></span></button>
+        </div>
+      </div>
+      <footer class="streak" id="streak-home"></footer>
+    </section>
+
+    <section id="game" class="screen">
+      <header class="topbar">
+        <button class="icon" id="btn-back" aria-label="Back">‹</button>
+        <div class="title"><div id="g-title"></div><div class="sub" id="g-sub"></div></div>
+        <div class="pill">🪙 <span data-coins>0</span></div>
+      </header>
+      <div id="tutorial" class="tutorial"></div>
+      <div class="board-wrap"><canvas id="board"></canvas></div>
+      <footer class="toolbar">
+        <button class="tool" id="btn-restart"><b>↻</b><small data-i18n="restart"></small></button>
+        <button class="tool" id="btn-undo"><b>↶</b><small data-i18n="undo"></small></button>
+        <button class="tool" id="btn-hint"><b>💡</b><small><span data-i18n="hint"></span> · <span id="hint-count"></span></small></button>
+      </footer>
+    </section>
+
+    <section id="shop" class="screen">
+      <header class="topbar">
+        <button class="icon" id="btn-shop-back" aria-label="Back">‹</button>
+        <div class="title"><div data-i18n="themes"></div></div>
+        <div class="pill">🪙 <span data-coins>0</span></div>
+      </header>
+      <div id="shop-list" class="shop-list"></div>
+      <button class="btn" id="btn-free-coins">🎬 +25 🪙</button>
+    </section>
+
+    <section id="levels" class="screen">
+      <header class="topbar">
+        <button class="icon" id="btn-levels-back" aria-label="Back">‹</button>
+        <div class="title"><div data-i18n="levels"></div></div>
+        <div class="pill">🪙 <span data-coins>0</span></div>
+      </header>
+      <div id="levels-grid" class="levels-grid"></div>
+    </section>
+
+    <section id="trophies" class="screen">
+      <header class="topbar">
+        <button class="icon" id="btn-trophies-back" aria-label="Back">‹</button>
+        <div class="title"><div data-i18n="trophies"></div></div>
+        <div class="pill">🪙 <span data-coins>0</span></div>
+      </header>
+      <div id="trophy-list" class="trophy-list"></div>
+    </section>
+
+    <div id="modal" class="modal hidden"><div class="card" id="modal-card"></div></div>
+    <div id="toast" class="toast"></div>
+  </div>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
