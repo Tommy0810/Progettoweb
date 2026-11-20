@@ -97,6 +97,36 @@ html, body {
 .menu { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 420px; margin: 0 auto; }
 .streak { text-align: center; min-height: 28px; padding-top: 14px; font-weight: 800; color: var(--src); }
 
+/* home: secondary buttons */
+.menu-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.tile-btn { min-height: 84px; font-size: 14px; gap: 4px; padding: 10px 6px; }
+.tile-btn b { font-size: 24px; line-height: 1; }
+.tile-btn small { font-size: 11px; }
+
+/* level map */
+.levels-grid { flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;
+  padding: 16px 2px; align-content: start; }
+.lvl { aspect-ratio: 1; border-radius: 16px; border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
+  background: color-mix(in srgb, var(--tile) 90%, transparent); color: var(--text); font: inherit; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 0; }
+.lvl b { font-size: 18px; font-weight: 900; }
+.lvl small { font-size: 10px; color: var(--src); letter-spacing: 1px; }
+.lvl.boss { border-color: color-mix(in srgb, var(--src) 60%, transparent); }
+.lvl.current { background: var(--accent); color: var(--bg); box-shadow: 0 0 18px color-mix(in srgb, var(--glow) 50%, transparent); }
+.lvl.current small { color: var(--bg); }
+.lvl.locked { opacity: 0.35; cursor: default; }
+.lvl:active:not(.locked) { transform: scale(0.94); }
+
+/* trophies */
+.trophy-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 16px 0; }
+.trophy { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--radius);
+  background: color-mix(in srgb, var(--tile) 90%, transparent); opacity: 0.6; }
+.trophy.got { opacity: 1; border: 1px solid color-mix(in srgb, var(--src) 45%, transparent); }
+.t-icon { font-size: 28px; width: 36px; text-align: center; }
+.t-text { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.t-text small { color: var(--muted); font-weight: 600; }
+.t-reward { font-weight: 800; color: var(--src); white-space: nowrap; }
+
 /* game */
 .tutorial {
   max-height: 0; overflow: hidden; opacity: 0; text-align: center; font-weight: 700;
@@ -114,6 +144,7 @@ html, body {
 .tool b { font-size: 22px; line-height: 1; }
 .tool small { font-size: 12px; font-weight: 700; color: var(--muted); }
 .tool:active { transform: scale(0.95); }
+.tool:disabled { opacity: 0.4; }
 
 /* shop */
 .shop-list { flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));

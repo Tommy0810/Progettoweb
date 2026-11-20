@@ -14,13 +14,17 @@ const DEFAULTS = {
   lastDaily: null,    // 'YYYY-MM-DD'
   levelsSinceAd: 0,
   noAds: false,       // set by the "Remove ads" in-app purchase
+  achievements: [],   // unlocked trophy ids
+  stats: { wins: 0, hints: 0, bossNoHint: 0 },
 };
 
 export function load() {
   try {
-    return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) || '{}') };
+    const saved = JSON.parse(localStorage.getItem(KEY) || '{}');
+    const base = structuredClone(DEFAULTS);
+    return { ...base, ...saved, stats: { ...base.stats, ...saved.stats } };
   } catch {
-    return { ...DEFAULTS };
+    return structuredClone(DEFAULTS);
   }
 }
 

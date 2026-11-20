@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { generate, levelConfig, dailyConfig, rot, tapsBetween, DIRS } from '../www/js/generator.js';
+import { generate, levelConfig, dailyConfig, rot, rotCCW, tapsBetween, DIRS, KIND, FIXED_FROM, REVERSE_FROM } from '../www/js/generator.js';
 
 function solvedNetworkOk(p) {
   // The solution must be a spanning tree: consistent edges, no edges leaving the grid, all connected.
@@ -31,10 +31,27 @@ test('levels 1..300 and dailies are valid, scrambled and deterministic', () => {
     const p = generate(cfg);
     assert.ok(solvedNetworkOk(p), 'solution is a spanning tree');
     assert.ok(p.cur.some((m, i) => m !== p.sol[i]), 'puzzle is not pre-solved');
-    assert.equal(p.par, p.cur.reduce((s, m, i) => s + tapsBetween(m, p.sol[i]), 0));
+    assert.equal(p.par, p.cur.reduce((s, m, i) => s + tapsBetween(m, p.sol[i], p.kinds[i]), 0));
     assert.ok(Number.isFinite(p.par) && p.par > 0);
     assert.deepEqual(generate(cfg).cur, p.cur, 'same seed => same puzzle');
   }
+});
+
+test('rotCCW undoes rot', () => {
+  for (let m = 0; m < 16; m++) assert.equal(rotCCW(rot(m)), m);
+});
+
+test('special tiles appear only from their unlock level, and fixed tiles are pre-solved', () => {
+  const count = (l, k) => generate(levelConfig(l)).kinds.filter((x) => x === k).length;
+  for (let l = 1; l < FIXED_FROM; l++) assert.equal(count(l, KIND.FIXED) + count(l, KIND.REVERSE), 0);
+  for (let l = FIXED_FROM; l < REVERSE_FROM; l++) assert.equal(count(l, KIND.REVERSE), 0);
+  let fixed = 0, reverse = 0;
+  for (let l = REVERSE_FROM; l < REVERSE_FROM + 20; l++) {
+    const p = generate(levelConfig(l));
+    p.kinds.forEach((k, i) => { if (k === KIND.FIXED) assert.equal(p.cur[i], p.sol[i]); });
+    fixed += count(l, KIND.FIXED); reverse += count(l, KIND.REVERSE);
+  }
+  assert.ok(fixed > 0 && reverse > 0);
 });
 
 test('difficulty grows overall', () => {

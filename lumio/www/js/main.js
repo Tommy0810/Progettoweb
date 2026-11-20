@@ -1,7 +1,8 @@
-import { generate, levelConfig, dailyConfig } from './generator.js';
+import { generate, levelConfig, dailyConfig, FIXED_FROM, REVERSE_FROM } from './generator.js';
+import { ACHIEVEMENTS, checkAchievements } from './achievements.js';
 import { Board } from './board.js';
 import { THEMES, applyTheme } from './themes.js';
-import { haptic, sfx, unlockAudio, share, showRewarded, showInterstitial } from './platform.js';
+import { haptic, sfx, unlockAudio, share, showRewarded, showInterstitial, scheduleReminder } from './platform.js';
 import { t, translateDom } from './i18n.js';
 import { load, save, dateKey, yesterdayKey, dailyNumber } from './storage.js';
 
@@ -17,6 +18,7 @@ sfx.enabled = S.sound;
 const $ = (sel) => document.querySelector(sel);
 let mode = null;     // { type: 'level', level, cfg } | { type: 'daily', key }
 let puzzle = null;
+let hintsThisLevel = 0;
 
 const board = new Board($('#board'), {
   onTap: (taps, progress) => {
@@ -63,13 +65,14 @@ function animateCoins(from, to) {
 
 function renderHome() {
   refreshCoins();
+  $('#trophy-count').textContent = `${S.achievements.length}/${ACHIEVEMENTS.length}`;
   $('#play-level').textContent = `${t('level')} ${S.level}`;
   const doneToday = S.lastDaily === dateKey();
   $('#daily-info').textContent = doneToday ? t('dailyDone') : t('dailyNew', { n: dailyReward(nextStreak()) });
   $('#btn-daily').classList.toggle('done', doneToday);
   $('#btn-daily').classList.toggle('pulse', !doneToday);
   const alive = S.lastDaily === dateKey() || S.lastDaily === yesterdayKey();
-  $('#streak-home').textContent = alive && S.streak > 0 ? t('streak', { n: S.streak }) : '';
+  $('#streak-home').textContent = alive && S.streak > 0 ? (S.streak === 1 ? t('streakOne') : t('streak', { n: S.streak })) : '';
 }
 
 // ---------------- game flow ----------------
@@ -78,7 +81,7 @@ function startLevel(level) {
   mode = { type: 'level', level, cfg };
   puzzle = generate(cfg);
   $('#g-title').textContent = cfg.boss ? `⚡ ${t('boss')} ${level}` : cfg.breather ? `🌙 ${t('level')} ${level}` : `${t('level')} ${level}`;
-  const tut = level === 1 ? t('tut1') : level === 2 ? t('tut2') : '';
+  const tut = { 1: t('tut1'), 2: t('tut2'), [FIXED_FROM]: t('tutFixed'), [REVERSE_FROM]: t('tutReverse') }[level] || '';
   $('#tutorial').textContent = tut;
   $('#tutorial').classList.toggle('show', !!tut);
   enterGame();
@@ -96,6 +99,7 @@ function startDaily() {
 function enterGame() {
   showScreen('game');
   refreshCoins();
+  hintsThisLevel = 0;
   board.load(puzzle, theme);
   updateHud();
 }
@@ -103,6 +107,7 @@ function enterGame() {
 function updateHud() {
   $('#g-sub').textContent = `${t('taps')}: ${board.taps} · ${t('par')} ${puzzle.par}`;
   $('#hint-count').textContent = S.freeHints > 0 ? S.freeHints : `${HINT_COST}🪙`;
+  $('#btn-undo').disabled = !board.canUndo();
 }
 
 function starsFor(taps, par) {
@@ -133,6 +138,7 @@ function onWin({ taps, par }) {
     reward = firstClear ? 5 + stars * 5 : 2;
     S.stars[n] = Math.max(S.stars[n] || 0, stars);
     if (firstClear) S.level = n + 1;
+    if (mode.cfg.boss && hintsThisLevel === 0) S.stats.bossNoHint++;
     shareWhat = `${t('level')} ${n}`;
   } else {
     const firstToday = S.lastDaily !== mode.key;
@@ -148,7 +154,10 @@ function onWin({ taps, par }) {
     shareWhat = t('dailyLabel', { n: dailyNumber() });
   }
   S.coins += reward;
+  S.stats.wins++;
+  const trophies = checkAchievements(S);
   save(S);
+  if (mode.type === 'daily') remind(true); // first good moment to ask for notifications
 
   const starsHtml = [0, 1, 2].map((i) => `<span class="star ${i < stars ? 'on' : ''}" style="animation-delay:${0.15 + i * 0.18}s">★</span>`).join('');
   openModal(`
@@ -165,7 +174,8 @@ function onWin({ taps, par }) {
   `, { dismissable: false });
 
   [0, 1, 2].forEach((i) => { if (i < stars) setTimeout(() => { sfx.star(i); haptic('light', S.haptics); }, 150 + i * 180); });
-  setTimeout(() => { if (reward) { sfx.coin(); animateCoins(before, S.coins); } }, 700);
+  setTimeout(() => { if (reward || trophies.length) { sfx.coin(); animateCoins(before, S.coins); } }, 700);
+  trophies.forEach((a, k) => setTimeout(() => announceTrophy(a), 1500 + k * 2000));
 
   $('#m-double')?.addEventListener('click', async (e) => {
     e.currentTarget.disabled = true;
@@ -200,7 +210,23 @@ function onWin({ taps, par }) {
       save(S);
       await showInterstitial();
     }
-    startLevel(S.level);
+    startLevel(mode.level + 1);
+  });
+}
+
+function announceTrophy(a) {
+  toast(t('trophyToast', { name: `${a.icon} ${t('ach_' + a.id)}`, n: a.reward }));
+  sfx.star(2);
+  haptic('success', S.haptics);
+}
+
+function remind(ask = false) {
+  const alive = S.lastDaily === dateKey() || S.lastDaily === yesterdayKey();
+  scheduleReminder({
+    ask,
+    doneToday: S.lastDaily === dateKey(),
+    title: t('remindTitle'),
+    body: alive && S.streak > 0 ? t('remindStreak', { n: S.streak }) : t('remindNew'),
   });
 }
 
@@ -235,7 +261,13 @@ function requestHint() {
 }
 
 function applyHint() {
-  if (board.hint()) { sfx.bulb(5); haptic('medium', S.haptics); }
+  if (board.hint()) {
+    sfx.bulb(5);
+    haptic('medium', S.haptics);
+    hintsThisLevel++;
+    S.stats.hints++;
+    save(S);
+  }
   updateHud();
 }
 
@@ -266,10 +298,49 @@ function renderShop() {
       S.theme = key;
       theme = applyTheme(key);
       board.setTheme(theme);
+      const trophies = checkAchievements(S);
       save(S);
       renderShop();
+      trophies.forEach((a, k) => setTimeout(() => announceTrophy(a), 400 + k * 2000));
     });
     list.appendChild(card);
+  }
+}
+
+// ---------------- level map ----------------
+function renderLevels() {
+  refreshCoins();
+  const grid = $('#levels-grid');
+  grid.innerHTML = '';
+  const last = S.level + 4; // show a few locked ones as a teaser
+  for (let n = 1; n <= last; n++) {
+    const b = document.createElement('button');
+    const locked = n > S.level;
+    const stars = S.stars[n] || 0;
+    const cfg = levelConfig(n);
+    b.className = 'lvl' + (locked ? ' locked' : '') + (n === S.level ? ' current' : '') + (cfg.boss ? ' boss' : '');
+    b.innerHTML = locked
+      ? `<b>🔒</b>`
+      : `<b>${n}</b><small>${n === S.level ? '▶' : '★'.repeat(stars) + '☆'.repeat(3 - stars)}</small>`;
+    if (!locked) b.addEventListener('click', () => startLevel(n));
+    grid.appendChild(b);
+  }
+  requestAnimationFrame(() => grid.querySelector('.current')?.scrollIntoView({ block: 'center' }));
+}
+
+// ---------------- trophies ----------------
+function renderTrophies() {
+  refreshCoins();
+  const list = $('#trophy-list');
+  list.innerHTML = '';
+  for (const a of ACHIEVEMENTS) {
+    const got = S.achievements.includes(a.id);
+    const row = document.createElement('div');
+    row.className = 'trophy' + (got ? ' got' : '');
+    row.innerHTML = `<span class="t-icon">${got ? a.icon : '🔒'}</span>
+      <div class="t-text"><b>${t('ach_' + a.id)}</b><small>${t('ach_' + a.id + '_d')}</small></div>
+      <span class="t-reward">${got ? '✓' : '+' + a.reward + ' 🪙'}</span>`;
+    list.appendChild(row);
   }
 }
 
@@ -324,12 +395,18 @@ function goHome() {
 
 translateDom();
 renderHome();
+remind(); // refresh tomorrow's reminder (only if permission was already granted)
 
 document.addEventListener('pointerdown', unlockAudio, { once: true });
 $('#btn-play').addEventListener('click', () => startLevel(S.level));
 $('#btn-daily').addEventListener('click', startDaily);
 $('#btn-shop').addEventListener('click', () => { renderShop(); showScreen('shop'); });
 $('#btn-shop-back').addEventListener('click', goHome);
+$('#btn-levels').addEventListener('click', () => { showScreen('levels'); renderLevels(); });
+$('#btn-levels-back').addEventListener('click', goHome);
+$('#btn-trophies').addEventListener('click', () => { renderTrophies(); showScreen('trophies'); });
+$('#btn-trophies-back').addEventListener('click', goHome);
+$('#btn-undo').addEventListener('click', () => { if (board.undo()) { sfx.tap(0); haptic('light', S.haptics); } updateHud(); });
 $('#btn-free-coins').addEventListener('click', freeCoins);
 $('#btn-settings').addEventListener('click', openSettings);
 $('#btn-back').addEventListener('click', goHome);

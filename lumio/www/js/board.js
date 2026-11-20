@@ -1,5 +1,5 @@
 // Canvas board: rendering, input, animation and win detection.
-import { DIRS, rot } from './generator.js';
+import { DIRS, turn, KIND } from './generator.js';
 
 const TAU = Math.PI * 2;
 
@@ -22,11 +22,12 @@ export class Board {
     this.w = puzzle.w;
     this.h = puzzle.h;
     this.tiles = puzzle.cur.map((m, i) => ({
-      m, sol: puzzle.sol[i], anim: 0, locked: false,
+      m, sol: puzzle.sol[i], kind: puzzle.kinds?.[i] ?? KIND.NORMAL, anim: 0, locked: false,
       power: 0, shake: 0, wave: 0, pop: 0,
     }));
     this.taps = 0;
     this.won = false;
+    this.history = [];
     this.particles = [];
     this.bulbs = [];
     this.tiles.forEach((t, i) => {
@@ -120,18 +121,41 @@ export class Board {
 
   tap(i) {
     const t = this.tiles[i];
-    if (t.locked) {
+    if (t.locked || t.kind === KIND.FIXED) {
       t.shake = 1;
       this.cb.onLocked?.();
       return;
     }
-    t.m = rot(t.m);
-    t.anim -= Math.PI / 2;
+    const prev = t.m;
+    const d = this.spin(t);
+    this.history.push({ i, prev, d });
     t.pop = 1;
     this.taps++;
     this.afterChange();
     this.cb.onTap?.(this.taps, this.litCount / this.bulbs.length);
   }
+
+  /** Turn a tile one step in its own direction; returns the animation offset applied. */
+  spin(t) {
+    t.m = turn(t.kind, t.m);
+    const d = t.kind === KIND.REVERSE ? Math.PI / 2 : -Math.PI / 2;
+    t.anim += d;
+    return d;
+  }
+
+  /** Take back the last rotation. Doesn't refund the tap. */
+  undo() {
+    if (this.won || !this.history.length) return false;
+    const { i, prev, d } = this.history.pop();
+    const t = this.tiles[i];
+    t.m = prev;
+    t.anim -= d;
+    t.pop = 1;
+    this.afterChange();
+    return true;
+  }
+
+  canUndo() { return !this.won && this.history.length > 0; }
 
   afterChange() {
     const before = this.litCount;
@@ -145,14 +169,15 @@ export class Board {
   hint() {
     if (this.won) return false;
     const wrong = [];
-    this.tiles.forEach((t, i) => { if (!t.locked && t.m !== t.sol) wrong.push(i); });
+    this.tiles.forEach((t, i) => { if (!t.locked && t.kind !== KIND.FIXED && t.m !== t.sol) wrong.push(i); });
     if (!wrong.length) return false;
     // Prefer tiles touching the lit network: the hint feels like "the next step".
     const near = wrong.filter((i) => this.neighbors(i).some((j) => this.powered[j]));
     const i = (near.length ? near : wrong)[0];
     const t = this.tiles[i];
-    while (t.m !== t.sol) { t.m = rot(t.m); t.anim -= Math.PI / 2; }
+    while (t.m !== t.sol) this.spin(t);
     t.locked = true;
+    this.history = []; // a locked tile can't be undone
     t.pop = 1;
     this.afterChange();
     return true;
@@ -238,9 +263,31 @@ export class Board {
 
       // tile background
       const s = cs * 0.92;
-      ctx.fillStyle = t.locked ? th.tileLocked : th.tile;
+      ctx.fillStyle = t.locked || t.kind === KIND.FIXED ? th.tileLocked : th.tile;
       roundRect(ctx, -s / 2, -s / 2, s, s, cs * 0.18);
       ctx.fill();
+      if (t.kind === KIND.FIXED) {
+        // four bolts: "this one doesn't move"
+        ctx.fillStyle = th.off;
+        const b = s * 0.34, br = Math.max(1.5, cs * 0.035);
+        for (const [bx, by] of [[-b, -b], [b, -b], [-b, b], [b, b]]) { circle(ctx, bx, by, br); ctx.fill(); }
+      } else if (t.kind === KIND.REVERSE) {
+        // counter-clockwise arrow in the corner
+        ctx.globalAlpha = 0.95;
+        ctx.strokeStyle = th.src;
+        ctx.lineWidth = Math.max(1.5, cs * 0.035);
+        const ax = -s * 0.3, ay = -s * 0.3, ar = cs * 0.09;
+        ctx.beginPath();
+        ctx.arc(ax, ay, ar, -0.2 * Math.PI, 1.2 * Math.PI);
+        ctx.stroke();
+        const ex = ax + Math.cos(-0.2 * Math.PI) * ar, ey = ay + Math.sin(-0.2 * Math.PI) * ar;
+        ctx.beginPath();
+        ctx.moveTo(ex - ar * 0.55, ey - ar * 0.15);
+        ctx.lineTo(ex, ey);
+        ctx.lineTo(ex + ar * 0.1, ey - ar * 0.6);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
       if (waveK > 0) {
         ctx.globalAlpha = waveK * 0.35;
         ctx.fillStyle = th.on;

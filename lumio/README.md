@@ -23,6 +23,11 @@ Il gioco è in HTML5/JavaScript puro, senza framework né asset esterni (anche i
 | **Suggerimenti**: 3 gratis, poi 30 monete oppure un video premio | Aiuta chi è bloccato e genera entrate pubblicitarie. |
 | **Raddoppia monete** guardando un video | Il formato pubblicitario meno invasivo e più redditizio. |
 | **Interstitial** ogni 4 livelli, solo dopo il livello 8 | I primi minuti restano puliti, che sono quelli decisivi. |
+| **Mappa dei livelli** 🗺️ con le stelle di ogni livello | Si può rigiocare qualsiasi livello per prendere 3 stelle. |
+| **Annulla** ↶ l'ultima mossa | Meno frustrazione, sessioni più lunghe. |
+| **Nuove tessere**: fisse 🔩 dal livello 31, ↺ che ruotano al contrario dal 46 | Novità a metà gioco, quando i giocatori iniziano ad annoiarsi. |
+| **12 trofei** 🏆 con premi in monete | Obiettivi a lungo termine (livelli, stelle, serie, boss senza aiuti). |
+| **Promemoria serale** (notifica alle 19:00) per la serie | Riporta i giocatori nell'app. Il permesso si chiede solo dopo la prima sfida del giorno, non al primo avvio. |
 | **Feedback**: vibrazione, suoni che salgono di tono man mano che ti avvicini alla soluzione, animazione a onda e particelle alla vittoria | Rende ogni tocco soddisfacente. |
 | Italiano/inglese automatico, tasto indietro Android, safe-area iPhone, salvataggio locale | Le basi per uscire su tutti gli store. |
 
@@ -47,30 +52,14 @@ Ti servono **Android Studio** per Android e un **Mac con Xcode** per iOS.
 ```bash
 cd lumio
 npm install
-npm run android      # crea /android, sincronizza e apre Android Studio
-npm run ios          # crea /ios, sincronizza e apre Xcode (solo macOS)
+npm run android      # Windows, macOS, Linux: prepara tutto e apre Android Studio
+npm run ios          # solo macOS: prepara tutto e apre Xcode
 ```
 
-Dopo ogni modifica in `www/` lancia `npx cap sync`.
+Il comando crea la cartella `android/` (o `ios/`) se manca, copia il gioco e **aggiunge da solo l'App ID AdMob** (senza, l'app si chiude all'avvio). Puoi rilanciarlo dopo ogni modifica in `www/`: non duplica nulla.
 
-### ⚠️ Obbligatorio prima di avviare l'app: ID AdMob
-
-Il plugin AdMob fa **crashare l'app all'avvio** se manca l'App ID. Nella fase di sviluppo usa gli ID di test di Google:
-
-**Android**: `android/app/src/main/AndroidManifest.xml`, dentro `<application>`:
-```xml
-<meta-data android:name="com.google.android.gms.ads.APPLICATION_ID"
-           android:value="ca-app-pub-3940256099942544~3347511713"/>
-```
-
-**iOS**: `ios/App/App/Info.plist`:
-```xml
-<key>GADApplicationIdentifier</key>
-<string>ca-app-pub-3940256099942544~1458002511</string>
-```
-
-Prima della pubblicazione:
-1. Crea l'app su [AdMob](https://admob.google.com) e sostituisci questi ID con i tuoi.
+Di default usa gli ID di **test** di Google. Prima della pubblicazione:
+1. Crea l'app su [AdMob](https://admob.google.com) e passa il tuo App ID: `ADMOB_ANDROID_APP_ID=ca-app-pub-...~... npm run android` (su Windows: `set ADMOB_ANDROID_APP_ID=ca-app-pub-...~...` e poi `npm run android`). Se la cartella `android/` esiste già con l'ID di test, cambialo a mano in `AndroidManifest.xml`.
 2. Metti le tue unità "rewarded" e "interstitial" in `www/js/platform.js` (`AD_UNITS`).
 3. In `platform.js` cambia `initializeForTesting: true` in `false`.
 4. Configura il consenso GDPR (UMP, obbligatorio in UE) e su iOS l'App Tracking Transparency. Il plugin AdMob li supporta entrambi.
@@ -93,13 +82,15 @@ lumio/
 │   ├── index.html
 │   ├── css/style.css
 │   └── js/
-│       ├── generator.js    # generazione puzzle + curva di difficoltà
+│       ├── generator.js    # generazione puzzle, tessere speciali, curva di difficoltà
+│       ├── achievements.js # trofei
 │       ├── board.js        # rendering canvas, input, animazioni, vittoria
 │       ├── main.js         # schermate, economia, streak, flusso di gioco
 │       ├── platform.js     # haptics, audio, share, AdMob (con fallback web)
 │       ├── themes.js       # temi sbloccabili
 │       ├── i18n.js         # IT / EN
 │       └── storage.js      # salvataggio locale
+├── scripts/native.mjs      # npm run android / ios
 ├── tests/                  # test unitari + end-to-end
 ├── capacitor.config.json
 └── package.json
@@ -113,8 +104,7 @@ Nessuno può garantire che un gioco arrivi in cima alle classifiche o ti renda r
 2. **Soft launch** in 1–2 paesi economici (es. Filippine, Canada) prima del lancio globale. Misura **retention D1 (>40%)**, **D7 (>15%)** e durata della sessione.
 3. **Analytics**: aggiungi Firebase Analytics o GameAnalytics. Gli eventi utili sono livello iniziato, completato e abbandonato, suggerimento usato, annuncio visto. In questo modo vedi in quale livello i giocatori abbandonano e ritocchi la curva in `levelConfig()`.
 4. **Acquisti in-app**: "Rimuovi pubblicità" (il flag `noAds` è già nel salvataggio) e pacchetti di monete con `@capgo/native-purchases` o RevenueCat. Tipicamente rendono più degli annunci per i giocatori più fedeli.
-5. **Notifiche push locali** ("La tua serie di 5 giorni sta per spezzarsi 🔥") con `@capacitor/local-notifications`. Sono la leva di retention più efficace dopo la daily.
-6. **Marketing**: i rompicapo rilassanti funzionano molto bene su TikTok e Reels (video di 10 secondi in cui tutta la griglia si illumina). Testa i creativi prima di pagare l'acquisizione utenti.
-7. **ASO**: screenshot chiari, parole chiave "puzzle, relax, logic, brain" e un video di anteprima di 15 secondi.
+5. **Marketing**: i rompicapo rilassanti funzionano molto bene su TikTok e Reels (video di 10 secondi in cui tutta la griglia si illumina). Testa i creativi prima di pagare l'acquisizione utenti.
+6. **ASO**: screenshot chiari, parole chiave "puzzle, relax, logic, brain" e un video di anteprima di 15 secondi.
 
-Idee per gli aggiornamenti: classifiche (Game Center / Play Games), eventi stagionali con temi a tempo, modalità a tempo, tessere speciali (bloccate, a ponte, a colori multipli) per i livelli avanzati.
+Idee per i prossimi aggiornamenti: classifiche (Game Center / Play Games), eventi stagionali con temi a tempo, modalità a tempo, altre tessere speciali (a ponte, a colori multipli).

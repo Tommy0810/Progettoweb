@@ -13,12 +13,24 @@ export const DIRS = [
 /** Rotate a mask 90° clockwise. */
 export const rot = (m) => ((m << 1) | (m >> 3)) & 15;
 
-/** Minimum clockwise taps to turn `from` into `to` (Infinity if impossible). */
-export function tapsBetween(from, to) {
+/** Rotate a mask 90° counter-clockwise. */
+export const rotCCW = (m) => ((m >> 1) | ((m & 1) << 3)) & 15;
+
+// Tile kinds: normal tiles turn clockwise, fixed tiles never move,
+// reverse tiles turn counter-clockwise.
+export const KIND = { NORMAL: 0, FIXED: 1, REVERSE: 2 };
+
+export function turn(kind, m) {
+  return kind === KIND.REVERSE ? rotCCW(m) : rot(m);
+}
+
+/** Minimum taps to turn `from` into `to` for a tile of this kind (Infinity if impossible). */
+export function tapsBetween(from, to, kind = KIND.NORMAL) {
+  if (kind === KIND.FIXED) return from === to ? 0 : Infinity;
   let m = from;
   for (let k = 0; k < 4; k++) {
     if (m === to) return k;
-    m = rot(m);
+    m = turn(kind, m);
   }
   return Infinity;
 }
@@ -43,7 +55,7 @@ export function hashString(s) {
   return h >>> 0;
 }
 
-export function generate({ w, h, seed, scramble = 1 }) {
+export function generate({ w, h, seed, scramble = 1, fixed = 0, reverse = 0 }) {
   const r = rng(seed);
   const n = w * h;
   const sol = new Array(n).fill(0);
@@ -94,8 +106,26 @@ export function generate({ w, h, seed, scramble = 1 }) {
     if (cur[i] !== sol[i]) wrong++;
   }
 
-  const par = cur.reduce((s, m, i) => s + tapsBetween(m, sol[i]), 0);
-  return { w, h, src, sol, cur, par };
+  // Special tiles (only drawn from the RNG when enabled, so early levels stay identical).
+  const kinds = new Array(n).fill(KIND.NORMAL);
+  if (fixed || reverse) {
+    for (let i = 0; i < n; i++) {
+      if (i === src) continue;
+      const roll = r();
+      if (roll < fixed) {
+        // Cross tiles look identical in every orientation: fixing them adds nothing.
+        if (rot(sol[i]) !== sol[i]) {
+          kinds[i] = KIND.FIXED;
+          cur[i] = sol[i];
+        }
+      } else if (roll < fixed + reverse) {
+        kinds[i] = KIND.REVERSE;
+      }
+    }
+  }
+
+  const par = cur.reduce((s, m, i) => s + tapsBetween(m, sol[i], kinds[i]), 0);
+  return { w, h, src, sol, cur, kinds, par };
 }
 
 // Difficulty curve: grid grows over time, with a "breather" every 5th level
@@ -104,6 +134,8 @@ const SIZES = [
   [3, 3], [3, 4], [4, 4], [4, 5], [5, 5], [5, 6],
   [6, 6], [6, 7], [7, 7], [7, 8], [7, 9], [8, 9], [8, 10],
 ];
+export const FIXED_FROM = 31;
+export const REVERSE_FROM = 46;
 const TIER_UNTIL = [2, 5, 9, 14, 21, 30, 42, 56, 75, 100, 140, 200];
 
 export function levelConfig(level) {
@@ -118,6 +150,8 @@ export function levelConfig(level) {
     w, h,
     seed: (level * 7919 + 104729) >>> 0,
     scramble: level <= 2 ? 0.55 : 1,
+    fixed: level >= FIXED_FROM ? 0.12 : 0,
+    reverse: level >= REVERSE_FROM ? 0.18 : 0,
     boss, breather,
   };
 }

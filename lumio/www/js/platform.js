@@ -86,6 +86,27 @@ export async function share(text) {
   }
 }
 
+// ---------- streak reminder (local notification) ----------
+// Asks for permission only when `ask` is true (after the first daily win),
+// never on the first launch: a cold permission prompt is usually refused.
+export async function scheduleReminder({ doneToday, title, body, ask = false }) {
+  const LN = Cap().LocalNotifications;
+  if (!LN) return;
+  try {
+    let perm = await LN.checkPermissions();
+    if (perm.display !== 'granted') {
+      if (!ask) return;
+      perm = await LN.requestPermissions();
+      if (perm.display !== 'granted') return;
+    }
+    await LN.cancel({ notifications: [{ id: 1 }] });
+    const at = new Date();
+    at.setHours(19, 0, 0, 0);
+    if (doneToday || at <= new Date()) at.setDate(at.getDate() + 1);
+    await LN.schedule({ notifications: [{ id: 1, title, body, schedule: { at, allowWhileIdle: true } }] });
+  } catch { /* reminders are best-effort */ }
+}
+
 // ---------- ads ----------
 // Production: install @capacitor-community/admob and replace the test IDs
 // below with your own ad unit IDs from the AdMob console.
